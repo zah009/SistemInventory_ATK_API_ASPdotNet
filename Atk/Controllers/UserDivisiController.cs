@@ -11,15 +11,29 @@ namespace Atk.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")] 
+    [Authorize(Roles = "Admin")]
     public class UserDivisiController : ControllerBase
     {
         private readonly IUserService _service;
-        
+
         public UserDivisiController(IUserService service)
         {
             _service = service;
-        } 
+        }
+
+        private static UserDivisiResponseDto MapToDto(User user)
+        {
+            return new UserDivisiResponseDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Nama = user.Nama,
+                NamaDivisi = user.NamaDivisi,
+                Role = user.Role.ToString(),
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            };
+        }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -29,7 +43,7 @@ namespace Atk.Controllers
             {
                 message = "Berhasil mengambil data user divisi",
                 statusCode = 200,
-                data
+                data = data.Select(MapToDto)
             });
         }
 
@@ -51,7 +65,7 @@ namespace Atk.Controllers
             {
                 message = "Berhasil mengambil data user divisi",
                 statusCode = 200,
-                data = user
+                data = MapToDto(user)
             });
         }
 
@@ -63,9 +77,11 @@ namespace Atk.Controllers
             {
                 message = "Berhasil menambahkan user divisi",
                 statusCode = 200,
-                data = newUser
+                data = MapToDto(newUser)
             });
         }
+
+        // Update dan Delete kamu udah aman, data-nya (object)null, nggak perlu diubah
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UserUpdateDivisiDto dto)
@@ -78,7 +94,7 @@ namespace Atk.Controllers
                     statusCode = 404,
                     data = (object)null
                 });
-            
+
             return Ok(new
             {
                 message = "Berhasil mengupdate user divisi",
