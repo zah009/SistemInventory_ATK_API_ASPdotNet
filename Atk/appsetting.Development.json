@@ -1,0 +1,20 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+
+  "ConnectionStrings": {
+    "DefaultConnection": "examapledatabase"
+  },
+
+  "Jwt": {
+    "Key": "examplekey",
+    "Issuer": "..",
+    "Audience": "..."
+  },
+
+  "AllowedHosts": "*"
+}
