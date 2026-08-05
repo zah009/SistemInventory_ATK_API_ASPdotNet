@@ -8,6 +8,9 @@ namespace Atk.DTOs.Payment
         [Required]
         public int SupplierId { get; set; }
 
+        // Opsional: kaitkan payment manual ini ke pengadaan tertentu.
+        public int? PengadaanId { get; set; }
+
         [Required]
         [Range(0.01, double.MaxValue, ErrorMessage = "TotalHarga harus lebih dari 0.")]
         public decimal TotalHarga { get; set; }

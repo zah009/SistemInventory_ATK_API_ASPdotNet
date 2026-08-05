@@ -13,6 +13,7 @@ namespace Atk.Services.Interfaces
         public Task<IEnumerable<BarangResponseDto>> GetAllAsync();
         public Task<BarangResponseDto?> GetByIdAsync(int id);
         public Task<BarangResponseDto> CreateAsync(BarangCreateDto dto);
+        public Task<List<BarangResponseDto>> CreateBulkAsync(IEnumerable<BarangCreateDto> dtos);
         public Task<BarangResponseDto> UpdateAsync(int id, BarangUpdateDto dto);
         public Task<bool> DeleteAsync(int id);
         Task<bool> ExistsByName(string namaBarang);

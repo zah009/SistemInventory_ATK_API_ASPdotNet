@@ -11,7 +11,6 @@ public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
 {
 }
 
-
     // DbSet / tabel  
     public DbSet<Supplier> Suppliers { get; set; }  
     public DbSet<PengadaanBarang> PengadaanBarangs { get; set; }  
@@ -22,7 +21,6 @@ public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     public DbSet<PermintaanBarang> PermintaanBarangs { get; set; }  
     public DbSet<User> Users { get; set; }  
     public DbSet<Divisi> Divisis { get; set; }
-
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)  
     {  
@@ -57,12 +55,17 @@ public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             .HasForeignKey(p => p.BarangId)  
             .OnDelete(DeleteBehavior.Restrict);  
 
-        // BarangMasuk → Barang (boleh cascade)  
+        // BarangMasuk → Barang (Restrict, BUKAN Cascade!)
+        // BarangMasuk adalah riwayat/audit trail pembelian (harga, tanggal,
+        // supplier). Kalau di-cascade, admin bisa menghapus master Barang
+        // dan diam-diam menghapus seluruh riwayat pembelian barang itu juga.
+        // Dengan Restrict, Barang yang masih punya riwayat BarangMasuk tidak
+        // bisa dihapus sampai riwayatnya ditangani secara eksplisit dulu.
         modelBuilder.Entity<BarangMasuk>()  
             .HasOne(bm => bm.Barang)  
             .WithMany(b => b.BarangMasuks)  
             .HasForeignKey(bm => bm.BarangId)  
-            .OnDelete(DeleteBehavior.Cascade);  
+            .OnDelete(DeleteBehavior.Restrict);  
 
         // BarangMasuk → Supplier (optional, no cascade)  
         modelBuilder.Entity<BarangMasuk>()  
@@ -70,6 +73,37 @@ public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             .WithMany(s => s.BarangMasuks)  
             .HasForeignKey(bm => bm.SupplierId)  
             .OnDelete(DeleteBehavior.Restrict);  
+
+        // =============================
+        // PengadaanBarang → Barang (wajib, no cascade supaya Barang
+        // master tidak ikut hilang kalau riwayat pengadaan dihapus)
+        modelBuilder.Entity<PengadaanBarang>()
+            .HasOne(pg => pg.Barang)
+            .WithMany()
+            .HasForeignKey(pg => pg.BarangId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // PengadaanBarang → Supplier
+        modelBuilder.Entity<PengadaanBarang>()
+            .HasOne(pg => pg.Supplier)
+            .WithMany(s => s.PengadaanBarang)
+            .HasForeignKey(pg => pg.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // BarangMasuk → PengadaanBarang (opsional, no cascade — hapus
+        // pengadaan tidak boleh otomatis menghapus riwayat barang masuk)
+        modelBuilder.Entity<BarangMasuk>()
+            .HasOne(bm => bm.PengadaanBarang)
+            .WithMany()
+            .HasForeignKey(bm => bm.PengadaanId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Payment → PengadaanBarang (opsional, no cascade)
+        modelBuilder.Entity<Payment>()
+            .HasOne(p => p.PengadaanBarang)
+            .WithMany()
+            .HasForeignKey(p => p.PengadaanId)
+            .OnDelete(DeleteBehavior.Restrict);
     }  
 }  
 

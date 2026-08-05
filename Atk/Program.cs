@@ -90,6 +90,25 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // ===============================
 builder.Services.AddRateLimiter(options =>
 {
+    // ⚠️ FIX: policy ini sebelumnya TIDAK ADA di sini, padahal dipakai lewat
+    // [EnableRateLimiting("login_limit")] di AuthController. Tanpa policy
+    // terdaftar, ASP.NET Core melempar InvalidOperationException begitu
+    // endpoint /api/auth/login diakses -> login selalu gagal (500).
+    // Window 1 menit, maksimal 5 percobaan per IP, supaya tidak mengganggu
+    // user normal tapi tetap membatasi brute-force password.
+    options.AddPolicy("login_limit", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            key => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }
+        )
+    );
+
     options.AddFixedWindowLimiter("supplier_bulk_limit", opt =>
     {
         opt.Window = TimeSpan.FromSeconds(10);
@@ -142,9 +161,13 @@ builder.Services.AddScoped<IAdminDashboard, AdminDashboardService>();
 // ===============================
 // JWT Authentication
 // ===============================
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourSuperSecretKey123!";
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+    throw new InvalidOperationException(
+        "Konfigurasi 'Jwt:Key' wajib diisi (appsettings.json / environment variable / user-secrets). " +
+        "Aplikasi tidak akan start dengan secret key default demi keamanan.");
 
-var key = Encoding.ASCII.GetBytes(jwtKey);
+var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -165,7 +188,13 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(key)
     };
 
-    // ✅ BACA TOKEN DARI COOKIE
+    // ⚠️ CATATAN (belum di-fix di sini, sengaja dibiarkan apa adanya):
+    // Kode ini membaca token dari cookie "AuthToken" kalau ada, tapi TIDAK
+    // ADA satupun endpoint (termasuk AuthController.Login) yang men-set
+    // cookie tersebut. Ini dead code selama login hanya mengembalikan token
+    // lewat JSON body. Tidak berbahaya (tidak ada cookie = tidak dibaca),
+    // tapi membingungkan. Beri tahu saya kalau memang mau diaktifkan
+    // (server set httponly cookie saat login) atau dihapus saja.
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -201,6 +230,39 @@ builder.Services.AddSession(options =>
 });
 
 var app = builder.Build();
+// Auto-apply pending migration saat startup (workaround Smart App Control
+// yang memblokir dotnet-ef tool reflection-load).
+//
+// ⚠️ FIX untuk Docker: healthcheck di docker-compose.yml sudah memastikan
+// SQL Server siap SEBELUM container api dijalankan, tapi tetap ditambahkan
+// retry manual di sini sebagai lapisan kedua — kondisi jaringan Docker atau
+// container yang baru pertama kali init (membuat volume baru) kadang masih
+// butuh beberapa detik tambahan meski healthcheck sudah "healthy". Tanpa
+// retry ini, app akan langsung crash sekali gagal konek dan tidak restart
+// otomatis kecuali `restart: on-failure` di-set.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<Atk.Data.ApplicationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    const int maxRetries = 5;
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            db.Database.Migrate();
+            break;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            var delaySeconds = attempt * 3; // 3s, 6s, 9s, 12s
+            logger.LogWarning(ex,
+                "Migrasi database gagal (percobaan {Attempt}/{MaxRetries}), retry dalam {Delay}s...",
+                attempt, maxRetries, delaySeconds);
+            Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+        }
+    }
+}
 
 // ===============================
 // Swagger UI

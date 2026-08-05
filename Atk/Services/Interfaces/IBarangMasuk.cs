@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Atk.DTOs.BarangMasuk;
-using Atk.Models;
 
 namespace Atk.Services.Interfaces
 {

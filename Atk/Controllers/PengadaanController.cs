@@ -88,20 +88,31 @@ namespace Atk.Controllers
 
             var result = new List<PengadaanResponseDto>();
 
-            foreach (var dto in dtos)
+            try
             {
-                if (await _service.ExistsByName(dto.NamaBarang))
+                foreach (var dto in dtos)
                 {
-                    return BadRequest(new
+                    if (await _service.HasOpenPengadaanAsync(dto.BarangId, dto.SupplierId))
                     {
-                        message = $"{dto.NamaBarang} sudah ada",
-                        statusCode = 400,
-                        data = (object)null
-                    });
+                        return BadRequest(new
+                        {
+                            message = $"Barang id {dto.BarangId} sudah punya pengadaan aktif (belum Selesai/Dibatalkan) ke supplier id {dto.SupplierId}",
+                            statusCode = 400,
+                            data = (object)null
+                        });
+                    }
+
+                    var newPengadaan = await _service.CreateAsync(dto);
+                    result.Add(newPengadaan);
                 }
-                
-                var newPengadaan = await _service.CreateAsync(dto);
-                result.Add(newPengadaan);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message, statusCode = 404, data = (object)null });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
             }
 
             return Ok(new
@@ -115,45 +126,53 @@ namespace Atk.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] PengadaanUpdateDto dto)
         {
-            var upt = await _service.UpdateAsync(id, dto);
-            if (upt == null)
+            try
             {
-                return NotFound(new
+                var upt = await _service.UpdateAsync(id, dto);
+                return Ok(new
                 {
-                    message = "Pengadaan tidak ditemukan",
-                    statusCode = 404,
-                    data = (object)null
+                    message = "Berhasil mengupdate pengadaan",
+                    statusCode = 200,
+                    data = upt
                 });
             }
-
-            return Ok(new
+            catch (KeyNotFoundException ex)
             {
-                message = "Berhasil mengupdate pengadaan",
-                statusCode = 200,
-                data = upt
-            });
+                return NotFound(new { message = ex.Message, statusCode = 404, data = (object)null });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
 
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var del = await _service.DeleteAsync(id);
-            if (!del)
+            try
             {
-                return NotFound(new
+                var del = await _service.DeleteAsync(id);
+                if (!del)
                 {
-                    message = "Data tidak ditemukan atau gagal dihapus",
-                    statusCode = 404,
+                    return NotFound(new
+                    {
+                        message = "Data tidak ditemukan atau gagal dihapus",
+                        statusCode = 404,
+                        data = (object)null
+                    });
+                }
+
+                return Ok(new
+                {
+                    message = "Berhasil menghapus pengadaan",
+                    statusCode = 200,
                     data = (object)null
                 });
             }
-
-            return Ok(new
+            catch (InvalidOperationException ex)
             {
-                message = "Berhasil menghapus pengadaan",
-                statusCode = 200,
-                data = (object)null
-            });
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
     }
 }

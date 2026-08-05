@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Atk.DTOs;
 using Atk.DTOs.PermintaanBarang;
 using Atk.Models;
@@ -78,26 +80,39 @@ namespace Atk.Controllers
         public async Task<IActionResult> UpdateStatus(int id,
             [FromBody] PermintaanBarangUpdateStatusDto dto)
         {
-            var success = await _service.UpdateStatusAsync(id, dto);
+            try
+            {
+                var success = await _service.UpdateStatusAsync(id, dto);
 
-            if (!success)
-                return NotFound(new
+                if (!success)
+                    return NotFound(new
+                    {
+                        message = "Permintaan barang tidak ditemukan",
+                        statusCode = 404,
+                        data = (object)null
+                    });
+
+                var msg = dto.Status == StatusPermintaan.Disetujui
+                    ? "disetujui"
+                    : "ditolak";
+
+                return Ok(new
                 {
-                    message = "Permintaan barang tidak ditemukan",
-                    statusCode = 404,
+                    message = $"Permintaan barang berhasil {msg}",
+                    statusCode = 200,
                     data = (object)null
                 });
-
-            var msg = dto.Status == StatusPermintaan.Disetujui
-                ? "disetujui"
-                : "ditolak";
-
-            return Ok(new
+            }
+            catch (KeyNotFoundException ex)
             {
-                message = $"Permintaan barang berhasil {msg}",
-                statusCode = 200,
-                data = (object)null
-            });
+                return NotFound(new { message = ex.Message, statusCode = 404, data = (object)null });
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Termasuk "Stok barang tidak mencukupi" — bisa juga hasil dari
+                // dua approval bersamaan yang kalah rebutan lock stok.
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
     }
 }

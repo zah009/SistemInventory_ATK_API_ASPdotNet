@@ -76,22 +76,21 @@ namespace Atk.Controllers
                 });
             }
 
-            var result = new List<BarangResponseDto>();
-
-            foreach (var dto in dtos)
+            List<BarangResponseDto> result;
+            try
             {
-                if (await _service.ExistsByName(dto.NamaBarang))
+                result = await _service.CreateBulkAsync(dtos);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Termasuk kasus nama barang duplikat di tengah batch —
+                // seluruh batch di-rollback, tidak ada yang tersimpan sebagian.
+                return BadRequest(new
                 {
-                    return BadRequest(new
-                    {
-                        message = $"{dto.NamaBarang} sudah ada",
-                        statusCode = 400,
-                        data = (object)null
-                    });
-                }
-
-                var newBarang = await _service.CreateAsync(dto);
-                result.Add(newBarang);
+                    message = ex.Message,
+                    statusCode = 400,
+                    data = (object)null
+                });
             }
 
             return Ok(new

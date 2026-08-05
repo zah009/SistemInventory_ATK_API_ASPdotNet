@@ -10,6 +10,12 @@ namespace Atk.DTOs.BarangMasuk
 
         public int? SupplierId { get; set; } // nullable, sesuai service
 
+        // Opsional: isi kalau barang masuk ini memenuhi sebuah PengadaanBarang.
+        // Kalau diisi, service akan memvalidasi bahwa BarangId & SupplierId
+        // cocok dengan pengadaan tersebut, lalu meng-update JumlahDiterima
+        // dan status pengadaannya (Disetujui -> Selesai kalau sudah terpenuhi).
+        public int? PengadaanId { get; set; }
+
         [Required]
         [Range(1, int.MaxValue, ErrorMessage = "JumlahMasuk harus lebih dari 0.")]
         public int JumlahMasuk { get; set; }

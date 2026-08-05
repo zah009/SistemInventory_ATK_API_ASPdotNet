@@ -32,34 +32,56 @@ namespace Atk.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(DivisiCreateDto dto)
         {
-            var created = await _service.CreateAsync(dto);
-            return Ok(new
+            try
             {
-                message = "Berhasil menambahkan divisi",
-                statusCode = 200,
-                data = created
-            });
+                var created = await _service.CreateAsync(dto);
+                return Ok(new
+                {
+                    message = "Berhasil menambahkan divisi",
+                    statusCode = 200,
+                    data = created
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, DivisiCreateDto dto)
         {
-            var result = await _service.UpdateAsync(id, dto);
-            
-            if (result == null)
-                return NotFound(new
-                {
-                    message = "Divisi tidak ditemukan",
-                    statusCode = 404,
-                    data = (object)null
-                });
-            
-            return Ok(new
+            try
             {
-                message = "Berhasil mengupdate divisi",
-                statusCode = 200,
-                data = result
-            });
+                var result = await _service.UpdateAsync(id, dto);
+
+                if (result == null)
+                    return NotFound(new
+                    {
+                        message = "Divisi tidak ditemukan",
+                        statusCode = 404,
+                        data = (object)null
+                    });
+
+                return Ok(new
+                {
+                    message = "Berhasil mengupdate divisi",
+                    statusCode = 200,
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
 
         [HttpDelete("{id}")]

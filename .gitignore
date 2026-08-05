@@ -7,3 +7,6 @@ appsettings.Local.json
 appsettings.*.Secrets.json
 appsettings.json
 
+# Docker secrets (SA password, JWT key) - JANGAN commit.
+# Cuma .env.example yang boleh ikut git.
+.env

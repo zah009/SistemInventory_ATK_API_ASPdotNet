@@ -10,6 +10,8 @@ namespace Atk.DTOs.BarangMasuk
 
         public int? SupplierId { get; set; }
 
+        public int? PengadaanId { get; set; }
+
         [Required]
         [Range(1, int.MaxValue, ErrorMessage = "JumlahMasuk harus lebih dari 0.")]
         public int JumlahMasuk { get; set; }

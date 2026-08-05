@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SistemInventoriAtk.Models;
 
 namespace Atk.Models
 {
@@ -18,6 +19,9 @@ namespace Atk.Models
 
         [Required]
         public int SupplierId { get; set; }
+
+        
+        public int? PengadaanId { get; set; }
 
         [Required]
         [Column(TypeName = "decimal(15, 2)")]
@@ -40,5 +44,8 @@ namespace Atk.Models
         // Navigasi ke Supplier
         [ForeignKey("SupplierId")]
         public Supplier Supplier { get; set; } = null!;
+
+        [ForeignKey("PengadaanId")]
+        public PengadaanBarang? PengadaanBarang { get; set; }
     }
 }

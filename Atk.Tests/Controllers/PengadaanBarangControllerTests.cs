@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Atk.Controllers;
 using Atk.DTOs.Pengadaan;
@@ -16,8 +17,8 @@ private List<PengadaanResponseDto> GetSampleData()
 {
 return new List<PengadaanResponseDto>
 {
-new PengadaanResponseDto { Id = 1, NamaBarang = "Pulpen", Satuan = "pcs", JumlahDiajukan = 10, CreatedAt = DateTime.Now },
-new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", JumlahDiajukan = 5, CreatedAt = DateTime.Now }
+new PengadaanResponseDto { Id = 1, BarangId = 1, NamaBarang = "Pulpen", Satuan = "pcs", JumlahDiajukan = 10, SupplierId = 1, CreatedAt = DateTime.Now },
+new PengadaanResponseDto { Id = 2, BarangId = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", JumlahDiajukan = 5, SupplierId = 1, CreatedAt = DateTime.Now }
 };
 }
 
@@ -39,8 +40,9 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.GetAll();
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var list = Assert.IsType<List<PengadaanResponseDto>>(ok.Value);
-        Assert.Equal(2, list.Count);
+        var data = ok.Value.GetType().GetProperty("data")?.GetValue(ok.Value);
+        var list = Assert.IsAssignableFrom<IEnumerable<PengadaanResponseDto>>(data);
+        Assert.Equal(2, list.Count());
     }
 
     [Fact]
@@ -54,8 +56,9 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.GetById(1);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<PengadaanResponseDto>(ok.Value);
-        Assert.Equal("Pulpen", data.NamaBarang);
+        var data = ok.Value.GetType().GetProperty("data")?.GetValue(ok.Value);
+        var item = Assert.IsType<PengadaanResponseDto>(data);
+        Assert.Equal("Pulpen", item.NamaBarang);
     }
 
     [Fact]
@@ -68,7 +71,7 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.GetById(999);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Contains("id tidak ditemukan", notFound.Value.ToString());
+        Assert.Contains("tidak ditemukan", notFound.Value.ToString());
     }
 
     [Fact]
@@ -76,19 +79,20 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
     {
         var dtos = new List<PengadaanCreateDto>
         {
-            new PengadaanCreateDto { NamaBarang = "Pensil", Satuan = "pcs", JumlahDiajukan = 12 },
-            new PengadaanCreateDto { NamaBarang = "Penghapus", Satuan = "pcs", JumlahDiajukan = 8 }
+            new PengadaanCreateDto { BarangId = 3, Satuan = "pcs", JumlahDiajukan = 12, SupplierId = 1, TanggalPengajuan = DateTime.Today },
+            new PengadaanCreateDto { BarangId = 4, Satuan = "pcs", JumlahDiajukan = 8, SupplierId = 1, TanggalPengajuan = DateTime.Today }
         };
 
         var mockService = new Mock<IPengadaan>();
-        mockService.Setup(s => s.ExistsByName(It.IsAny<string>())).ReturnsAsync(false);
+        mockService.Setup(s => s.HasOpenPengadaanAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(false);
         mockService.Setup(s => s.CreateAsync(It.IsAny<PengadaanCreateDto>()))
             .ReturnsAsync((PengadaanCreateDto dto) => new PengadaanResponseDto
             {
                 Id = new Random().Next(10, 100),
-                NamaBarang = dto.NamaBarang,
+                BarangId = dto.BarangId,
                 Satuan = dto.Satuan,
                 JumlahDiajukan = dto.JumlahDiajukan,
+                SupplierId = dto.SupplierId,
                 CreatedAt = DateTime.Now
             });
 
@@ -98,20 +102,21 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.CreateBulk(dtos);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var list = Assert.IsType<List<PengadaanResponseDto>>(ok.Value);
+        var data = ok.Value.GetType().GetProperty("data")?.GetValue(ok.Value);
+        var list = Assert.IsAssignableFrom<List<PengadaanResponseDto>>(data);
         Assert.Equal(2, list.Count);
     }
 
     [Fact]
-    public async Task CreateBulk_ReturnsBadRequest_WhenDuplicate()
+    public async Task CreateBulk_ReturnsBadRequest_WhenAdaPengadaanAktifUntukBarangSupplierYangSama()
     {
         var dtos = new List<PengadaanCreateDto>
         {
-            new PengadaanCreateDto { NamaBarang = "Pulpen", Satuan = "pcs", JumlahDiajukan = 10 }
+            new PengadaanCreateDto { BarangId = 1, Satuan = "pcs", JumlahDiajukan = 10, SupplierId = 1, TanggalPengajuan = DateTime.Today }
         };
 
         var mockService = new Mock<IPengadaan>();
-        mockService.Setup(s => s.ExistsByName("Pulpen")).ReturnsAsync(true);
+        mockService.Setup(s => s.HasOpenPengadaanAsync(1, 1)).ReturnsAsync(true);
 
         var controller = new PengadaanController(mockService.Object);
         ResetRateLimit(controller);
@@ -119,14 +124,36 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.CreateBulk(dtos);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Contains("sudah ada", badRequest.Value.ToString());
+        Assert.Contains("pengadaan aktif", badRequest.Value.ToString());
+    }
+
+    [Fact]
+    public async Task CreateBulk_ReturnsNotFound_WhenBarangTidakDitemukan()
+    {
+        var dtos = new List<PengadaanCreateDto>
+        {
+            new PengadaanCreateDto { BarangId = 999, Satuan = "pcs", JumlahDiajukan = 10, SupplierId = 1, TanggalPengajuan = DateTime.Today }
+        };
+
+        var mockService = new Mock<IPengadaan>();
+        mockService.Setup(s => s.HasOpenPengadaanAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(false);
+        mockService.Setup(s => s.CreateAsync(It.IsAny<PengadaanCreateDto>()))
+            .ThrowsAsync(new KeyNotFoundException("Barang dengan id 999 tidak ditemukan."));
+
+        var controller = new PengadaanController(mockService.Object);
+        ResetRateLimit(controller);
+
+        var result = await controller.CreateBulk(dtos);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Contains("tidak ditemukan", notFound.Value.ToString());
     }
 
     [Fact]
     public async Task Update_ReturnsOk_WhenSuccessful()
     {
-        var dto = new PengadaanUpdateDto { NamaBarang = "Pulpen Updated", Satuan = "pcs", JumlahDiajukan = 15 };
-        var updated = new PengadaanResponseDto { Id = 1, NamaBarang = "Pulpen Updated", Satuan = "pcs", JumlahDiajukan = 15, CreatedAt = DateTime.Now };
+        var dto = new PengadaanUpdateDto { BarangId = 1, Satuan = "pcs", JumlahDiajukan = 15, SupplierId = 1, TanggalPengajuan = DateTime.Today };
+        var updated = new PengadaanResponseDto { Id = 1, BarangId = 1, NamaBarang = "Pulpen Updated", Satuan = "pcs", JumlahDiajukan = 15, SupplierId = 1, CreatedAt = DateTime.Now };
 
         var mockService = new Mock<IPengadaan>();
         mockService.Setup(s => s.UpdateAsync(1, dto)).ReturnsAsync(updated);
@@ -135,23 +162,41 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.Update(1, dto);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<PengadaanResponseDto>(ok.Value);
+        var responseData = ok.Value.GetType().GetProperty("data")?.GetValue(ok.Value);
+        var data = Assert.IsType<PengadaanResponseDto>(responseData);
         Assert.Equal("Pulpen Updated", data.NamaBarang);
     }
 
     [Fact]
     public async Task Update_ReturnsNotFound_WhenMissing()
     {
-        var dto = new PengadaanUpdateDto { NamaBarang = "NonExist", Satuan = "pcs", JumlahDiajukan = 5 };
+        var dto = new PengadaanUpdateDto { BarangId = 1, Satuan = "pcs", JumlahDiajukan = 5, SupplierId = 1, TanggalPengajuan = DateTime.Today };
 
         var mockService = new Mock<IPengadaan>();
-        mockService.Setup(s => s.UpdateAsync(999, dto)).ReturnsAsync((PengadaanResponseDto)null);
+        mockService.Setup(s => s.UpdateAsync(999, dto))
+            .ThrowsAsync(new KeyNotFoundException("PengadaanBarang tidak ditemukan"));
 
         var controller = new PengadaanController(mockService.Object);
         var result = await controller.Update(999, dto);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Contains("Supplier Tidak Ditemukan", notFound.Value.ToString());
+        Assert.Contains("tidak ditemukan", notFound.Value.ToString());
+    }
+
+    [Fact]
+    public async Task Update_ReturnsBadRequest_WhenSudahDipenuhiSebagian()
+    {
+        var dto = new PengadaanUpdateDto { BarangId = 2, Satuan = "pcs", JumlahDiajukan = 5, SupplierId = 1, TanggalPengajuan = DateTime.Today };
+
+        var mockService = new Mock<IPengadaan>();
+        mockService.Setup(s => s.UpdateAsync(1, dto))
+            .ThrowsAsync(new InvalidOperationException("Pengadaan sudah sebagian/seluruhnya dipenuhi lewat Barang Masuk."));
+
+        var controller = new PengadaanController(mockService.Object);
+        var result = await controller.Update(1, dto);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("sudah sebagian", badRequest.Value.ToString());
     }
 
     [Fact]
@@ -164,7 +209,7 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.Delete(1);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.True((bool)ok.Value);
+        Assert.Contains("Berhasil", ok.Value.ToString());
     }
 
     [Fact]
@@ -177,7 +222,21 @@ new PengadaanResponseDto { Id = 2, NamaBarang = "Buku Tulis", Satuan = "pcs", Ju
         var result = await controller.Delete(999);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Contains("Data Tidak Terhapus", notFound.Value.ToString());
+        Assert.Contains("tidak ditemukan", notFound.Value.ToString());
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsBadRequest_WhenPunyaRiwayatBarangMasuk()
+    {
+        var mockService = new Mock<IPengadaan>();
+        mockService.Setup(s => s.DeleteAsync(1))
+            .ThrowsAsync(new InvalidOperationException("Pengadaan ini sudah punya riwayat Barang Masuk dan tidak bisa dihapus."));
+
+        var controller = new PengadaanController(mockService.Object);
+        var result = await controller.Delete(1);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("riwayat Barang Masuk", badRequest.Value.ToString());
     }
 }
 

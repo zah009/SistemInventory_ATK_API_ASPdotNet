@@ -49,8 +49,15 @@ public class AuthService : IAuthService
     // ===============================
     public string GenerateJwtToken(User user)
     {
-        var jwtKey = _config["Jwt:Key"] ?? "YourVerySecretKey123";
-        var keyBytes = Encoding.ASCII.GetBytes(jwtKey);
+        var jwtKey = _config["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(jwtKey))
+            throw new InvalidOperationException(
+                "Konfigurasi 'Jwt:Key' wajib diisi. Tidak boleh generate token dengan secret key default.");
+
+        // WAJIB sama persis (encoding & sumber) dengan yang dipakai untuk
+        // memvalidasi token di Program.cs, kalau tidak token yang di-generate
+        // di sini tidak akan pernah valid saat divalidasi middleware.
+        var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
         var claims = new[]
         {

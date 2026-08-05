@@ -96,6 +96,15 @@ namespace Atk.Controllers
                     data = (object)null
                 });
             }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message,
+                    statusCode = 400,
+                    data = (object)null
+                });
+            }
         }
 
         // BULK CREATE
@@ -139,6 +148,15 @@ namespace Atk.Controllers
                     data = (object)null
                 });
             }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message,
+                    statusCode = 400,
+                    data = (object)null
+                });
+            }
         }
 
         // UPDATE
@@ -153,22 +171,37 @@ namespace Atk.Controllers
                     data = ModelState
                 });
 
-            var result = await _service.UpdateAsync(id, dto);
+            try
+            {
+                var result = await _service.UpdateAsync(id, dto);
 
-            if (!result)
-                return NotFound(new
+                if (!result)
+                    return NotFound(new
+                    {
+                        message = "Data tidak ditemukan atau gagal diperbarui",
+                        statusCode = 404,
+                        data = (object)null
+                    });
+
+                return Ok(new
                 {
-                    message = "Data tidak ditemukan atau gagal diperbarui",
-                    statusCode = 404,
+                    message = "Update berhasil",
+                    statusCode = 200,
                     data = (object)null
                 });
-
-            return Ok(new
+            }
+            catch (KeyNotFoundException ex)
             {
-                message = "Update berhasil",
-                statusCode = 200,
-                data = (object)null
-            });
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
 
         // DELETE

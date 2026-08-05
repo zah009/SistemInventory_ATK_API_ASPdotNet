@@ -61,7 +61,8 @@ namespace Atk.Controllers
         {
             var payment = new Payment
             {
-                SupplierId = dto.SupplierId, 
+                SupplierId = dto.SupplierId,
+                PengadaanId = dto.PengadaanId,
                 TotalHarga = dto.TotalHarga, 
                 TanggalBayar = dto.TanggalBayar, 
                 Keterangan = dto.Keterangan, 

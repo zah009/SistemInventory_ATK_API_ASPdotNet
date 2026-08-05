@@ -18,7 +18,6 @@ var options = new DbContextOptionsBuilder<ApplicationDbContext>()
 .UseInMemoryDatabase(Guid.NewGuid().ToString())
 .Options;
 
-
         var context = new ApplicationDbContext(options);
 
         // Seed supplier
@@ -186,37 +185,92 @@ var options = new DbContextOptionsBuilder<ApplicationDbContext>()
         Assert.Equal("/path/to/file.pdf", check.BuktiTransferFilePath);
     }
 
+    // ================================================================
+    // AddOrUpdatePaymentFromBarangMasukAsync / ReducePaymentFromBarangMasukAsync
+    // sekarang punya parameter pengadaanId (int?) di posisi kedua.
+    // Kita uji DUA skenario:
+    //  1) pengadaanId = null  -> perilaku lama (grouping per supplier+tanggal)
+    //  2) pengadaanId diisi   -> payment dikunci ke PengadaanId tertentu,
+    //     TIDAK bercampur dengan payment lain di supplier+tanggal yang sama.
+    // ================================================================
+
     [Fact]
-    public async Task AddOrUpdatePaymentFromBarangMasukAsync_AddsOrUpdatesPayment()
+    public async Task AddOrUpdatePaymentFromBarangMasukAsync_TanpaPengadaan_GroupingPerSupplierTanggal()
     {
         var context = await GetInMemoryDbContext();
         var service = GetService(context);
 
-        // Add baru
-        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, DateTime.Today, 500);
+        // Add baru (pengadaanId = null)
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, null, DateTime.Today, 500);
         var payment = context.Payments.FirstOrDefault();
         Assert.NotNull(payment);
+        Assert.Null(payment.PengadaanId);
         Assert.Equal(500, payment.TotalHarga);
 
-        // Update existing
-        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, DateTime.Today, 300);
+        // Update existing (masih pengadaanId = null, supplier & tanggal sama -> digabung)
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, null, DateTime.Today, 300);
         payment = context.Payments.FirstOrDefault();
         Assert.Equal(800, payment.TotalHarga);
     }
 
     [Fact]
-    public async Task ReducePaymentFromBarangMasukAsync_ReducesTotalHarga()
+    public async Task AddOrUpdatePaymentFromBarangMasukAsync_DenganPengadaan_TidakBercampurDenganPengadaanLain()
     {
         var context = await GetInMemoryDbContext();
         var service = GetService(context);
 
-        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, DateTime.Today, 1000);
+        // Dua "pengadaan" berbeda (pengadaanId 10 & 20) ke supplier & tanggal yang SAMA
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, 10, DateTime.Today, 500);
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, 20, DateTime.Today, 700);
 
-        var reduced = await service.ReducePaymentFromBarangMasukAsync(1, DateTime.Today, 400);
+        // Harus jadi 2 payment terpisah, bukan digabung jadi 1 seperti perilaku lama
+        Assert.Equal(2, context.Payments.Count());
+
+        var paymentPengadaan10 = context.Payments.First(p => p.PengadaanId == 10);
+        var paymentPengadaan20 = context.Payments.First(p => p.PengadaanId == 20);
+
+        Assert.Equal(500, paymentPengadaan10.TotalHarga);
+        Assert.Equal(700, paymentPengadaan20.TotalHarga);
+
+        // Tambahan barang masuk lain untuk pengadaan 10 -> harus nambah ke payment 10 saja
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, 10, DateTime.Today, 200);
+        Assert.Equal(2, context.Payments.Count()); // tetap 2, bukan nambah payment baru
+        paymentPengadaan10 = context.Payments.First(p => p.PengadaanId == 10);
+        Assert.Equal(700, paymentPengadaan10.TotalHarga);
+    }
+
+    [Fact]
+    public async Task ReducePaymentFromBarangMasukAsync_TanpaPengadaan_ReducesTotalHarga()
+    {
+        var context = await GetInMemoryDbContext();
+        var service = GetService(context);
+
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, null, DateTime.Today, 1000);
+
+        var reduced = await service.ReducePaymentFromBarangMasukAsync(1, null, DateTime.Today, 400);
         var payment = context.Payments.FirstOrDefault();
 
         Assert.True(reduced);
         Assert.Equal(600, payment.TotalHarga);
+    }
+
+    [Fact]
+    public async Task ReducePaymentFromBarangMasukAsync_DenganPengadaan_HanyaMenguraniPaymentPengadaanTerkait()
+    {
+        var context = await GetInMemoryDbContext();
+        var service = GetService(context);
+
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, 10, DateTime.Today, 1000);
+        await ((IPayment)service).AddOrUpdatePaymentFromBarangMasukAsync(1, 20, DateTime.Today, 1000);
+
+        var reduced = await service.ReducePaymentFromBarangMasukAsync(1, 10, DateTime.Today, 400);
+        Assert.True(reduced);
+
+        var paymentPengadaan10 = context.Payments.First(p => p.PengadaanId == 10);
+        var paymentPengadaan20 = context.Payments.First(p => p.PengadaanId == 20);
+
+        Assert.Equal(600, paymentPengadaan10.TotalHarga); // berkurang
+        Assert.Equal(1000, paymentPengadaan20.TotalHarga); // tidak terpengaruh
     }
 
     [Fact]
@@ -225,7 +279,7 @@ var options = new DbContextOptionsBuilder<ApplicationDbContext>()
         var context = await GetInMemoryDbContext();
         var service = GetService(context);
 
-        var reduced = await service.ReducePaymentFromBarangMasukAsync(999, DateTime.Today, 100);
+        var reduced = await service.ReducePaymentFromBarangMasukAsync(999, null, DateTime.Today, 100);
         Assert.False(reduced);
     }
 }

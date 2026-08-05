@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Threading.Tasks;
+using SistemInventoriAtk.Models;
 
 namespace Atk.Models
 {
@@ -16,6 +17,9 @@ namespace Atk.Models
         public int BarangId { get; set; }
 
         public int? SupplierId { get; set; }
+
+        
+        public int? PengadaanId { get; set; }
 
         [Required]
         public int JumlahMasuk { get; set; }
@@ -35,6 +39,9 @@ namespace Atk.Models
 
         [ForeignKey("SupplierId")]
         public Supplier? Supplier { get; set; }
-    
+
+        [ForeignKey("PengadaanId")]
+        public PengadaanBarang? PengadaanBarang { get; set; }
+
     }
 }

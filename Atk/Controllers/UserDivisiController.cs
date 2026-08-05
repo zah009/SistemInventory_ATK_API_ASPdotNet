@@ -72,35 +72,47 @@ namespace Atk.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] UserCreateDivisiDto dto)
         {
-            var newUser = await _service.CreateDivisiUserAsync(dto);
-            return Ok(new
+            try
             {
-                message = "Berhasil menambahkan user divisi",
-                statusCode = 200,
-                data = MapToDto(newUser)
-            });
+                var newUser = await _service.CreateDivisiUserAsync(dto);
+                return Ok(new
+                {
+                    message = "Berhasil menambahkan user divisi",
+                    statusCode = 200,
+                    data = MapToDto(newUser)
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
-
-        // Update dan Delete kamu udah aman, data-nya (object)null, nggak perlu diubah
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UserUpdateDivisiDto dto)
         {
-            var update = await _service.UpdateAsync(id, dto);
-            if (!update)
-                return NotFound(new
+            try
+            {
+                var update = await _service.UpdateAsync(id, dto);
+                if (!update)
+                    return NotFound(new
+                    {
+                        message = "User tidak ditemukan atau gagal diupdate",
+                        statusCode = 404,
+                        data = (object)null
+                    });
+
+                return Ok(new
                 {
-                    message = "User tidak ditemukan atau gagal diupdate",
-                    statusCode = 404,
+                    message = "Berhasil mengupdate user divisi",
+                    statusCode = 200,
                     data = (object)null
                 });
-
-            return Ok(new
+            }
+            catch (InvalidOperationException ex)
             {
-                message = "Berhasil mengupdate user divisi",
-                statusCode = 200,
-                data = (object)null
-            });
+                return BadRequest(new { message = ex.Message, statusCode = 400, data = (object)null });
+            }
         }
 
         [HttpDelete("{id}")]

@@ -54,14 +54,16 @@ namespace Atk.Tests.Services
         {
             var paymentMock = new Mock<IPayment>();
 
-            // AddOrUpdatePaymentFromBarangMasukAsync -> Task
-            paymentMock.Setup(p => p.AddOrUpdatePaymentFromBarangMasukAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<decimal>()))
+            // AddOrUpdatePaymentFromBarangMasukAsync sekarang punya parameter
+            // pengadaanId (int?) di posisi kedua -> Task
+            paymentMock.Setup(p => p.AddOrUpdatePaymentFromBarangMasukAsync(
+                    It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<DateTime>(), It.IsAny<decimal>()))
                     .Returns(Task.CompletedTask);
 
-            // ReducePaymentFromBarangMasukAsync -> Task<bool>
-            paymentMock.Setup(p => p.ReducePaymentFromBarangMasukAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<decimal>()))
+            // ReducePaymentFromBarangMasukAsync juga sudah punya pengadaanId (int?) -> Task<bool>
+            paymentMock.Setup(p => p.ReducePaymentFromBarangMasukAsync(
+                    It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<DateTime>(), It.IsAny<decimal>()))
                     .ReturnsAsync(true); // bisa true atau false sesuai test case
-
 
             return new BarangMasukService(context, paymentMock.Object);
         }
