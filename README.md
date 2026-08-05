@@ -432,4 +432,4 @@ Buka `http://localhost:3000` di browser — frontend akan otomatis memanggil API
 
 ## Lisensi
 
-Sesuaikan dengan kebutuhan (belum ada file `LICENSE` di repository ini).
+Said Hamzah
